@@ -37,34 +37,34 @@ simulation_sem_paths = '/storage/mskim/samsung/open/simulation_data/SEM/'
 simulation_depth_paths = '/storage/mskim/samsung/open/simulation_data/Depth/'
 
 
-def inference(model, test_loader, device):
-    model.to(device)
-    model.eval()
-
-    result_name_list = []
-    result_list = []
-    with torch.no_grad():
-        for sem, name in tqdm(iter(test_loader)):
-            sem = sem.float().to(device)
-            model_pred = model(sem)
-
-            for pred, img_name in zip(model_pred, name):
-                pred = pred.cpu().numpy().transpose(1, 2, 0) * 255.
-                save_img_path = f'{img_name}'
-                # cv2.imwrite(save_img_path, pred)
-                result_name_list.append(save_img_path)
-                result_list.append(pred)
-
-    os.makedirs('/storage/mskim/samsung/open/submission', exist_ok=True)
-    os.chdir("/storage/mskim/samsung/open/submission/")
-    sub_imgs = []
-    for path, pred_img in zip(result_name_list, result_list):
-        cv2.imwrite(path, pred_img)
-        sub_imgs.append(path)
-    submission = zipfile.ZipFile("/storage/mskim/samsung/open/submission/submission.zip", 'w')
-    for path in sub_imgs:
-        submission.write(path)
-    submission.close()
+# def inference(model, test_loader, device):
+#     model.to(device)
+#     model.eval()
+#
+#     result_name_list = []
+#     result_list = []
+#     with torch.no_grad():
+#         for sem, name in tqdm(iter(test_loader)):
+#             sem = sem.float().to(device)
+#             model_pred = model(sem)
+#
+#             for pred, img_name in zip(model_pred, name):
+#                 pred = pred.cpu().numpy().transpose(1, 2, 0) * 255.
+#                 save_img_path = f'{img_name}'
+#                 # cv2.imwrite(save_img_path, pred)
+#                 result_name_list.append(save_img_path)
+#                 result_list.append(pred)
+#
+#     os.makedirs('/storage/mskim/samsung/open/submission', exist_ok=True)
+#     os.chdir("/storage/mskim/samsung/open/submission/")
+#     sub_imgs = []
+#     for path, pred_img in zip(result_name_list, result_list):
+#         cv2.imwrite(path, pred_img)
+#         sub_imgs.append(path)
+#     submission = zipfile.ZipFile("/storage/mskim/samsung/open/submission/submission.zip", 'w')
+#     for path in sub_imgs:
+#         submission.write(path)
+#     submission.close()
 
     # test_sem_path_list = sorted(glob.glob('/storage/mskim/samsung/open//test/SEM/*.png'))
     #
@@ -77,14 +77,18 @@ if __name__ == '__main__':
     want_load = 'sem'
     best_score = 999999
     best_model = None
+
     batch_size = 2000
     epoch = 1
+
     datasize = (52, 52)
     width = 48
     height = 72
+
     bf_lr = 1e-4
     lr = 1e-4
     lr_min = 1e-8
+
     cpu_id = '1'
     continue_train = False
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
@@ -101,7 +105,7 @@ if __name__ == '__main__':
         net.init_weights()
     else:
         net.load_networks(net=net, net_type='lr_{}_{}'.format(want_load, bf_lr), device=device,
-                          weight_path='/home/ssunkim/PycharmProjects/LGAimers_Project/ssun/checkpoints')
+                          weight_path='/home/ssunkim/PycharmProjects/samsung_sem/checkpoints')
 
     train_dataset = sem_dataload(simulation_sem_paths, simulation_depth_paths, datasize)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
@@ -122,9 +126,9 @@ if __name__ == '__main__':
         epoch_start_time = time.time()
         print('------- epoch {} starts -------'.format(curr_epoch + 1))
         train_loss = []
-        for sem, depth in enumerate(train_loader, 1):
-            sem = sem.float().to(device)
-            depth = depth.float().to(device)
+        for batch_id, data in enumerate(train_loader, 1):
+            sem = data['sem'].type('torch.FloatTensor').to(device)
+            depth = data['depth'].type('torch.FloatTensor').to(device)
 
             optimizer.zero_grad()
 
@@ -146,4 +150,4 @@ if __name__ == '__main__':
 
         print('Save network...')
         torch.save({'net': net.state_dict()},
-                   '/home/ssunkim/PycharmProjects/LGAimers_Project/ssun/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_load, lr))
+                   '/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_load, lr))

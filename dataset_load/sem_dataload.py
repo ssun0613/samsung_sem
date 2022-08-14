@@ -2,6 +2,7 @@ import random
 import pandas as pd
 import numpy as np
 import torch
+import torchvision.transforms as transforms
 import os
 import glob
 import cv2
@@ -27,15 +28,21 @@ class sem_dataload():
         sem_img = np.expand_dims(sem_img, axis=-1).transpose(2, 0, 1)
         sem_img = sem_img / 255.
 
+        sem_img = torch.Tensor(sem_img)
+
         if self.train_depth is not None:
             depth_path = self.train_depth[index]
             depth_img = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
             depth_img = np.expand_dims(depth_img, axis=-1).transpose(2, 0, 1)
             depth_img = depth_img / 255.
-            return torch.Tensor(sem_img), torch.Tensor(depth_img)  # B,C,H,W
+
+            depth_img = torch.Tensor(depth_img)
+
+            return {'sem' : sem_img , 'depth' : depth_img}  # B,C,H,W
+
         else:
             img_name = sem_path.split('/')[-1]
-            return torch.Tensor(sem_img), img_name  # B,C,H,W
+            return {'sem' : sem_img , 'depth' : img_name}  # B,C,H,W
 
 
     def _toTensor(self):
@@ -46,7 +53,7 @@ class sem_dataload():
 if __name__=='__main__':
     simulation_sem_paths = '/storage/mskim/samsung/open/simulation_data/SEM/'
     simulation_depth_paths = '/storage/mskim/samsung/open/simulation_data/Depth/'
-
-    dataset_object_train = sem_dataload(simulation_sem_paths, simulation_depth_paths)
+    datasize = (52, 52)
+    dataset_object_train = sem_dataload(simulation_sem_paths, simulation_depth_paths, datasize)
 
     x, y = dataset_object_train.__getitem__(0)
