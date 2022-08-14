@@ -79,6 +79,7 @@ if __name__ == '__main__':
     best_model = None
     batch_size = 2000
     epoch = 1
+    datasize = (52, 52)
     width = 48
     height = 72
     bf_lr = 1e-4
@@ -102,7 +103,7 @@ if __name__ == '__main__':
         net.load_networks(net=net, net_type='lr_{}_{}'.format(want_load, bf_lr), device=device,
                           weight_path='/home/ssunkim/PycharmProjects/LGAimers_Project/ssun/checkpoints')
 
-    train_dataset = sem_dataload(simulation_sem_paths, simulation_depth_paths)
+    train_dataset = sem_dataload(simulation_sem_paths, simulation_depth_paths, datasize)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
 
