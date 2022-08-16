@@ -8,13 +8,12 @@ import glob
 import cv2
 
 class sem_dataload():
-    def __init__(self, simulation_sem_paths, simulation_depth_paths, datasize):
+    def __init__(self, simulation_sem_paths, simulation_depth_paths):
         self.simulation_sem_paths = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
         self.simulation_depth_paths = sorted(glob.glob(simulation_depth_paths + '*/*/*.png') + glob.glob(simulation_depth_paths + '*/*/*.png'))
 
         self.data_len = len(self.simulation_sem_paths)
-        self.sem_size = datasize
-        self._toTensor = self._toTensor()
+
 
         self.train_sem = self.simulation_sem_paths[:int(self.data_len * 0.8)]
         self.train_depth = self.simulation_depth_paths[:int(self.data_len * 0.8)]
@@ -44,11 +43,26 @@ class sem_dataload():
             img_name = sem_path.split('/')[-1]
             return {'sem' : sem_img , 'depth' : img_name}  # B,C,H,W
 
+class sem_test_dataload():
+    def __init__(self, test_sem_paths):
+        self.test_sem_paths = sorted(glob.glob(test_sem_paths + 'SEM/*.png'))
 
-    def _toTensor(self):
-        toTensor = transforms.Compose([transforms.Resize(self.sem_size),
-                                       transforms.ToTensor()])
-        return toTensor
+        self.test_sem = self.test_sem_paths
+    def __len__(self):
+        return len(self.test_sem)
+
+    def __getitem__(self, index):
+        sem_path = self.test_sem[index]
+        sem_img = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+        sem_img = np.expand_dims(sem_img, axis=-1).transpose(2, 0, 1)
+        sem_img = sem_img / 255.
+
+        sem_img = torch.Tensor(sem_img)
+
+        img_name = sem_path.split('/')[-1]
+
+        return {'sem' : sem_img , 'depth' : img_name}
+
 
 if __name__=='__main__':
     simulation_sem_paths = '/storage/mskim/samsung/open/simulation_data/SEM/'

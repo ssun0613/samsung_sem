@@ -5,48 +5,54 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 
-class BaseModel(nn.Module):
-    def __init__(self, width, height):
-        super(BaseModel, self).__init__()
-        self.width = width
-        self.height = height
+class autoencoder(nn.Module):
+    def __init__(self):
+        super(autoencoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Linear(self.width * self.height, 1024),
-            nn.BatchNorm1d(1024),
+            nn.Conv2d(1, 64, 3, 2),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Linear(1024, 512),
-            nn.BatchNorm1d(512),
+            nn.Conv2d(64, 128, 3, 2),
+            nn.BatchNorm2d(128),
             nn.ReLU(),
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
+            nn.Conv2d(128, 256, 3, 2),
+            nn.BatchNorm2d(256),
             nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
+            nn.Conv2d(256, 512, 3, 2),
+            nn.BatchNorm2d(512),
             nn.ReLU(),
         )
-
-        self.decoder = nn.Sequential(
-            nn.Linear(128, 256),
-            nn.BatchNorm1d(256),
+        self.linear = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(3072, 1024),
             nn.ReLU(),
-            nn.Linear(256, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
+            nn.Linear(1024, 512)
+        )
+        self.decoder_1 = nn.Sequential(
             nn.Linear(512, 1024),
-            nn.BatchNorm1d(1024),
             nn.ReLU(),
-            nn.Linear(1024, self.width * self.height),
+            nn.Linear(1024, 3072),
+            nn.ReLU(),
+        )
+        self.decoder_2 = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, 4, 2),
+            nn.ConvTranspose2d(256, 128, 3, 2, [0, 1]),
+            nn.ConvTranspose2d(128, 64, 3, 2),
+            nn.ConvTranspose2d(64, 32, 3, 2),
+            nn.ConvTranspose2d(32, 1, 2, 1),
         )
 
     def set_input(self, x):
         self.input = x
 
     def forward(self):
-        self.input = self.input.view(-1, self.width * self.height)
-        self.output = self.decoder(self.encoder(self.input))
-        self.output = self.output.view(-1, 1,self.width * self.height)
-        return self.output
+        out = self.encoder(self.input)
+        latent = self.linear(out)
+        out = self.decoder_1(latent)
+        out = out.view(-1, 512, 3, 2)
+        self.output = self.decoder_2(out)
 
+        return self.output
 
     def predict(self):
         return self.output
@@ -90,28 +96,11 @@ class BaseModel(nn.Module):
 
         return net
 
-    def scores(self, label, pred):  # label은 test_y, pred는 예측값
-        from sklearn.metrics import mean_squared_error
-
-        label = label.cpu().detach().numpy()
-        label = pd.DataFrame(label)
-        pred = pred.cpu().detach().numpy()
-        all_nrmse = []
-        for idx in range(len(label.columns)):  # columns 수만큼 반복하고자 함
-            rmse = mean_squared_error(label.iloc[:, idx], pred[:, idx],
-                                      squared=False)  # label은 dataframe 형태, pred는 numpy 형태
-            nrmse = rmse / np.mean(np.abs(label.iloc[:, idx]))
-            all_nrmse.append(nrmse)
-            score = 1.2 * np.sum(all_nrmse[:8]) + 1.0 * np.sum(all_nrmse[8:15])
-
-        return score
-
-
 if __name__ == '__main__':
     print('Debug StackedAE')
-    model = neural_net()
+    model = autoencoder()
     model.init_weights()
-    x = torch.rand(52)
+    x = torch.rand(1,1,72,48)
     model.set_input(x)
     model.forward()
     output = model.get_outputs()
