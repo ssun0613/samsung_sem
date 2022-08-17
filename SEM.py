@@ -85,7 +85,7 @@ if __name__ == '__main__':
     continue_train = True
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
 
-    import wandb
+    # import wandb
     # wandb.init(project=want_load)
     # ------------------------------------------------------------------------------------------------------------------------------------------
     print('want_load : {}\nbatch_size : {}\nepoch : {}\nbf_lr : {}\nlr : {}\ncpu_id : {}\n'.format(want_load, batch_size, epoch, bf_lr, lr, cpu_id))
@@ -104,8 +104,8 @@ if __name__ == '__main__':
 
     test_dataset = sem_test_dataload(test_sem_paths)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-    # test(net, test_loader, device)
-    # print('\nfinish test\n')
+    test(net, test_loader, device)
+    print('\nfinish test\n')
 
     # ****** Optimizer, Scheduler setup ******
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
@@ -139,12 +139,12 @@ if __name__ == '__main__':
 
             train_loss.append(loss.cpu().detach().numpy().item())
 
-            # if global_step % 10 == 0:
-            #     loss_dict = dict()
-            #     loss_dict['loss'] = np.mean(train_loss)
-            #     log(prefix='train', metrics_dict=loss_dict)
-            #
-            #     train_loss = []
+            if global_step % 10 == 0:
+                loss_dict = dict()
+                loss_dict['loss'] = np.mean(train_loss)
+                log(prefix='train', metrics_dict=loss_dict)
+
+                train_loss = []
 
         print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
         print('------- epoch {} ends -------'.format(curr_epoch + 1))
