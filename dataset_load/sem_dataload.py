@@ -9,14 +9,11 @@ import cv2
 
 class sem_dataload():
     def __init__(self, simulation_sem_paths, simulation_depth_paths):
-        self.simulation_sem_paths = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
-        self.simulation_depth_paths = sorted(glob.glob(simulation_depth_paths + '*/*/*.png') + glob.glob(simulation_depth_paths + '*/*/*.png'))
+        self.train_sem = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
+        self.train_depth = sorted(glob.glob(simulation_depth_paths + '*/*/*.png') + glob.glob(simulation_depth_paths + '*/*/*.png'))
 
-        self.data_len = len(self.simulation_sem_paths)
+        self.data_len = len(self.train_sem)
 
-
-        self.train_sem = self.simulation_sem_paths[:int(self.data_len * 0.8)]
-        self.train_depth = self.simulation_depth_paths[:int(self.data_len * 0.8)]
 
     def __len__(self):
         return len(self.train_sem)
@@ -27,21 +24,15 @@ class sem_dataload():
         sem_img = np.expand_dims(sem_img, axis=-1).transpose(2, 0, 1)
         sem_img = sem_img / 255.
 
+        depth_path = self.train_depth[index]
+        depth_img = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+        depth_img = np.expand_dims(depth_img, axis=-1).transpose(2, 0, 1)
+        depth_img = depth_img / 255.
+
         sem_img = torch.Tensor(sem_img)
+        depth_img = torch.Tensor(depth_img)
 
-        if self.train_depth is not None:
-            depth_path = self.train_depth[index]
-            depth_img = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
-            depth_img = np.expand_dims(depth_img, axis=-1).transpose(2, 0, 1)
-            depth_img = depth_img / 255.
-
-            depth_img = torch.Tensor(depth_img)
-
-            return {'sem' : sem_img , 'depth' : depth_img}  # B,C,H,W
-
-        else:
-            img_name = sem_path.split('/')[-1]
-            return {'sem' : sem_img , 'depth' : img_name}  # B,C,H,W
+        return {'sem' : sem_img , 'depth' : depth_img}  # B,C,H,W
 
 class sem_test_dataload():
     def __init__(self, test_sem_paths):
@@ -58,7 +49,6 @@ class sem_test_dataload():
         sem_img = sem_img / 255.
 
         sem_img = torch.Tensor(sem_img)
-
         img_name = sem_path.split('/')[-1]
 
         return {'sem' : sem_img , 'depth' : img_name}

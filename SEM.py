@@ -71,8 +71,8 @@ if __name__ == '__main__':
     best_score = 999999
     best_model = None
 
-    batch_size = 1000
-    epoch = 50
+    batch_size = 2000
+    epoch = 200
 
     width = 48
     height = 72
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     lr_min = 1e-8
 
     cpu_id = '0'
-    continue_train = False
+    continue_train = True
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
 
     import wandb
@@ -105,6 +105,7 @@ if __name__ == '__main__':
     test_dataset = sem_test_dataload(test_sem_paths)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
     # test(net, test_loader, device)
+    # print('\nfinish test\n')
 
     # ****** Optimizer, Scheduler setup ******
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
