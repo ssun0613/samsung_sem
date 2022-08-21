@@ -32,14 +32,33 @@ def train_depth_split(train_avg_depth_path):
     train_depth_130.to_csv('/storage/mskim/samsung/open/train/train_depth_130.csv', index=False)
     train_depth_140.to_csv('/storage/mskim/samsung/open/train/train_depth_140.csv', index=False)
 
-if __name__=='__main__':
+def cross_validation(train_depth_path):
+    os.makedirs('/storage/mskim/samsung/open/train/cv_train', exist_ok=True)
+    os.makedirs('/storage/mskim/samsung/open/train/cv_test', exist_ok=True)
 
-    cv_train_depth_1 = pd.DataFrame()
-    for i in range(1,5):
-        train_depth = pd.read_csv(train_depth_path + 'train_depth_1{}0.csv'.format(int(i))).sample(frac=0.7)
-        cv_train_depth_1 = cv_train_depth_1.append(train_depth)
-    cv_train_depth_1 = cv_train_depth_1.sort_values(by=['0']).reset_index(drop=True)
-    print(cv_train_depth_1)
+    for i in range(1,6):
+        cv_train_depth = pd.DataFrame()
+        cv_test_depth = pd.DataFrame()
+
+        for j in range(1,5):
+            train_depth = pd.read_csv(train_depth_path + 'train_depth_1{}0.csv'.format(j))
+            cv = train_depth.sample(frac=0.7)
+            cv_train_depth = cv_train_depth.append(cv)
+            cv_test_depth = cv_test_depth.append(train_depth.drop(cv.index))
+
+        cv_train_depth = cv_train_depth.sort_values(by=['0']).reset_index(drop=True)
+        cv_test_depth = cv_test_depth.sort_values(by=['0']).reset_index(drop=True)
+
+        print(cv_train_depth)
+        print(cv_test_depth)
+
+        os.chdir("/storage/mskim/samsung/open/train/cv_train/")
+        cv_train_depth.to_csv('cv_train_{}.csv'.format(i), index=False)
+        os.chdir("/storage/mskim/samsung/open/train/cv_test/")
+        cv_test_depth.to_csv('cv_test_{}.csv'.format(i), index=False)
+
+# if __name__=='__main__':
+
 
 
 
