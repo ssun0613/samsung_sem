@@ -15,12 +15,15 @@ from torch.optim import lr_scheduler
 
 from sklearn.metrics import mean_squared_error
 from model.sem_model import autoencoder
+from model.sem_model_resnet import sem_resnet
+from model.depth import depth_lenet
 from function import *
 
 simulation_sem_paths = '/storage/mskim/samsung/open/simulation_data/SEM/'
 simulation_depth_paths = '/storage/mskim/samsung/open/simulation_data/Depth/'
 
-train_sem_paths = '/storage/mskim/samsung/open/train/'
+train_sem_paths = '/storage/mskim/samsung/open/train/SEM/'
+train_depth_paths = '/storage/mskim/samsung/open/train/cv_train/cv_train_1.csv'
 test_sem_paths = '/storage/mskim/samsung/open/test/'
 
 def seed_everything(seed):
@@ -67,7 +70,7 @@ def test(net, test_loader, device):
 def data_load(want_load):
     if want_load == 'sem':
         from dataset_load.sem_dataload import sem_dataload, sem_test_dataload
-        train_dataset = sem_dataload(train_sem_paths)
+        train_dataset = sem_dataload(train_sem_paths, train_depth_paths)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
         test_dataset = sem_test_dataload(test_sem_paths)
@@ -82,25 +85,29 @@ def data_load(want_load):
         test_dataset = sem_test_dataload(test_sem_paths)
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
+    elif want_load == 'depth_simulation':
+        from dataset_load.sem_dataload import sem_simulation_depth_dataload, sem_test_dataload
+        train_dataset = sem_simulation_depth_dataload(simulation_depth_paths)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+
+        test_dataset = sem_test_dataload(test_sem_paths)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
     return train_loader, test_loader
 
 if __name__ == '__main__':
     # ------------------------------------------------------------------------------------------------------------------------------------------
-    want_load = 'sem'
+    want_load = 'sem_simulation'
 
-    batch_size = 2000
+    batch_size = 120
     epoch = 200
-
-    width = 48
-    height = 72
 
     bf_lr = 1e-4
     lr = 1e-4
     lr_min = 1e-8
 
     cpu_id = '0'
-    continue_train = False
-    # device = "cpu"
+    continue_train = True
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
 
     # import wandb
@@ -109,12 +116,14 @@ if __name__ == '__main__':
     print('want_load : {}\nbatch_size : {}\nepoch : {}\nbf_lr : {}\nlr : {}\ncpu_id : {}\n'.format(want_load, batch_size, epoch, bf_lr, lr, cpu_id))
     # ------------------------------------------------------------------------------------------------------------------------------------------
 
-    net = autoencoder().to(device)
+    sem_net = sem_resnet().to(device)
+    depth_net = depth_lenet().to(device)
+
 
     if not continue_train:
-        net.init_weights()
+        sem_net.init_weights()
     else:
-        net.load_networks(net=net, net_type='lr_{}_{}'.format(want_load, bf_lr), device=device,
+        sem_net.load_networks(net=sem_net, net_type='lr_{}_{}'.format(want_load, bf_lr), device=device,
                           weight_path='/home/ssunkim/PycharmProjects/samsung_sem/checkpoints')
 
     train_loader, test_loader = data_load(want_load)
@@ -123,9 +132,13 @@ if __name__ == '__main__':
     print('\nfinish test\n')
 
     # ****** Optimizer, Scheduler setup ******
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(sem_net.parameters(), lr=lr)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=lr_min)
-    fn_loss = nn.CrossEntropyLoss()
+
+    optimizer_1 = torch.optim.Adam(depth_net.parameters(), lr=lr)
+    scheduler_1 = lr_scheduler.CosineAnnealingLR(optimizer_1, T_max=20, eta_min=lr_min)
+
+    fn_loss = nn.MSELoss()
 
     # ---- Training ----
     global_step = 0
@@ -142,24 +155,31 @@ if __name__ == '__main__':
             sem = data['sem'].type('torch.FloatTensor').to(device)
             depth = data['depth'].type('torch.FloatTensor').to(device)
 
-            net.set_input(sem)
-            net.forward()
+            sem_net.set_input(sem)
+            depth_pred_1 = sem_net.forward()
 
-            output = net.predict()
-            loss = fn_loss(output, depth)
+            depth_net.set_input(depth_pred_1)
+            depth_net.forward()
+            depth_pred_2 = depth_net.predict_1()
+
+            loss_1 = fn_loss(depth_pred_1, depth)
+            loss_2 = fn_loss(depth_pred_2, depth)
+
+            loss = loss_1 + loss_2
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            train_loss.append(loss.cpu().detach().numpy().item())
+            # train_loss.append(loss.cpu().detach().numpy().item())
+            #
+            # if global_step % 10 == 0:
+            #     loss_dict = dict()
+            #     loss_dict['loss'] = np.mean(train_loss)
+            #     log(prefix='train', metrics_dict=loss_dict)
+            #
+            #     train_loss = []
 
-            if global_step % 10 == 0:
-                loss_dict = dict()
-                loss_dict['loss'] = np.mean(train_loss)
-                log(prefix='train', metrics_dict=loss_dict)
-
-                train_loss = []
 
         print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
         print('------- epoch {} ends -------'.format(curr_epoch + 1))
@@ -169,6 +189,6 @@ if __name__ == '__main__':
         print('[Network] learning rate = %.7f' % optimizer.param_groups[0]['lr'])
 
         print('Save network...')
-        torch.save({'net': net.state_dict()},'/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_load, lr))
+        torch.save({'net': sem_net.state_dict()},'/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_load, lr))
 
 
