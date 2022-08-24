@@ -52,7 +52,6 @@ class sem_simulation_dataload():
 
         self.data_len = len(self.train_sem)
 
-
     def __len__(self):
         return len(self.train_sem)
 
@@ -70,7 +69,7 @@ class sem_simulation_dataload():
         sem_img = torch.Tensor(sem_img)
         depth_img = torch.Tensor(depth_img)
 
-        return {'sem' : sem_img , 'depth' : depth_img}  # B,C,H,W
+        return {'sem' : sem_img , 'depth' : depth_img}
 
 class sem_simulation_depth_dataload():
     def __init__(self, simulation_depth_paths):
@@ -91,7 +90,7 @@ class sem_simulation_depth_dataload():
         depth_img = torch.Tensor(depth_img)
         depth_label = torch.Tensor(depth_label)
 
-        return {'depth' : depth_img, 'label' : depth_label }  # B,C,H,W
+        return {'depth' : depth_img, 'label' : depth_label }
 
 class sem_test_dataload():
     def __init__(self, test_sem_paths):
