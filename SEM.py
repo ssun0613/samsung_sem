@@ -77,9 +77,17 @@ def data_load(want_load):
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
 
-    elif want_load == 'sem_simulation':
+    elif want_load == 'sem_depth_simulation':
         from dataset_load.sem_dataload import sem_simulation_dataload, sem_test_dataload
         train_dataset = sem_simulation_dataload(simulation_sem_paths, simulation_depth_paths)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+
+        test_dataset = sem_test_dataload(test_sem_paths)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+
+    elif want_load == 'sem_simulation':
+        from dataset_load.sem_dataload import sem_simulation_sem_dataload, sem_test_dataload
+        train_dataset = sem_simulation_sem_dataload(simulation_sem_paths, simulation_depth_paths)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
         test_dataset = sem_test_dataload(test_sem_paths)
@@ -107,7 +115,7 @@ if __name__ == '__main__':
     lr_min = 1e-8
 
     cpu_id = '0'
-    continue_train = True
+    continue_train = False
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
 
     # import wandb

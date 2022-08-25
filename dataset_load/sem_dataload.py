@@ -57,8 +57,10 @@ class sem_simulation_dataload():
 
     def __getitem__(self, index):
         sem_path = self.train_sem[index]
+
         sem_img = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
         sem_img = np.expand_dims(sem_img, axis=-1).transpose(2, 0, 1)
+
         sem_img = sem_img / 255.
 
         depth_path = self.train_depth[index]
@@ -71,6 +73,39 @@ class sem_simulation_dataload():
 
         return {'sem' : sem_img , 'depth' : depth_img}
 
+class sem_simulation_sem_dataload():
+    def __init__(self, simulation_sem_paths, simulation_depth_paths):
+        self.train_sem = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
+        self.train_depth = sorted(glob.glob(simulation_depth_paths + '*/*/*.png')+glob.glob(simulation_depth_paths + '*/*/*.png'))
+
+        self.data_len = len(self.train_depth)
+
+    def __len__(self):
+        return len(self.train_sem)
+
+    def __getitem__(self, index):
+        sem_path = self.train_sem[(2 * index) % self.data_len]
+        sem_path_1 = self.train_sem[(2 * index + 1) % self.data_len]
+
+        sem_img_1 = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
+        sem_img_2 = cv2.imread(sem_path_1, cv2.IMREAD_GRAYSCALE)
+
+
+        sem_img_1 = np.expand_dims(sem_img_1, axis=-1).transpose(2, 0, 1)
+        sem_img_2 = np.expand_dims(sem_img_2, axis=-1).transpose(2, 0, 1)
+
+        sem_img = np.sum([sem_img_1, sem_img_2], axis=0) / 2.0
+        sem_img = sem_img / 255.
+
+        depth_path = self.train_depth[(2 * index) % self.data_len]
+        depth_img = cv2.imread(depth_path, cv2.IMREAD_GRAYSCALE)
+        depth_img = np.expand_dims(depth_img, axis=-1).transpose(2, 0, 1)
+        depth_img = depth_img / 255.
+
+        sem_img = torch.Tensor(sem_img)
+        depth_img = torch.Tensor(depth_img)
+
+        return {'sem': sem_img, 'depth': depth_img}
 class sem_simulation_depth_dataload():
     def __init__(self, simulation_depth_paths):
         self.train_depth_image = sorted(glob.glob(simulation_depth_paths + '*/*/*.png'))
@@ -121,6 +156,6 @@ if __name__=='__main__':
     test_sem_paths = '/storage/mskim/samsung/open/test/'
 
     datasize = (52, 52)
-    dataset_object_train = sem_simulation_depth_dataload(simulation_depth_paths)
+    dataset_object_train = sem_simulation_sem_dataload(simulation_sem_paths, simulation_depth_paths)
 
     x, y = dataset_object_train.__getitem__(0)
