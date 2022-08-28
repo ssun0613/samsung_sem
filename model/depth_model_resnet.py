@@ -3,7 +3,20 @@ import torch.nn as nn
 import os
 import torch.nn.functional as F
 import numpy as np
-import pandas as pd
+
+class Hook():
+    def __init__(self, module, backward):
+        if backward == False:
+            self.hook = module.register_forward_hook(self.hook_fn)
+        else:
+            self.hook = module.register_full_backward_hook(self.hook_fn)
+
+    def hook_fn(self, module, input, output):
+        self.input = input
+        self.output = output
+
+    def closs(self):
+        self.hook.remove()
 
 class Conv(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
@@ -33,9 +46,9 @@ class shortcut(nn.Module):
         out = self.shortcut(x)
         return out + self.projection(x)
 
-class sem_resnet(nn.Module):
+class depth_resnet(nn.Module):
     def __init__(self):
-        super(sem_resnet, self).__init__()
+        super(depth_resnet, self).__init__()
         self.CNN = nn.Sequential(nn.Conv2d(in_channels=1, out_channels=32, stride=(1, 1), kernel_size=(3, 3)),
                                  nn.BatchNorm2d(32),
                                  nn.ReLU(),
@@ -51,47 +64,67 @@ class sem_resnet(nn.Module):
                                  shortcut(in_channels=512, out_channels=256, kernel_size=(3, 3), stride=2, padding=2),
                                  shortcut(in_channels=256, out_channels=128, kernel_size=(3, 3), stride=2, padding=2),
                                  )
+        self.GAP = nn.AdaptiveAvgPool2d(1)
+        self.flatten = nn.Flatten()
+        self.classification = nn.Linear(128, 1)
 
-        self.linear = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(1536, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 512)
-        )
-        self.decoder_1 = nn.Sequential(
-            nn.Linear(512, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 1536),
-            nn.ReLU(),
-        )
-        self.decoder_2 = nn.Sequential(
-            nn.ConvTranspose2d(128, 256, 3, 2),
-            nn.ConvTranspose2d(256, 512, 3, 2, [0, 1]),
-            nn.ConvTranspose2d(512, 256, 3, 2),
-            nn.ConvTranspose2d(256, 128, 2, 2, [1, 1]),
-            nn.ConvTranspose2d(128, 64, 2, 1, [1, 1]),
-            nn.ConvTranspose2d(64, 32, 2, 1, [1, 1]),
-            nn.ConvTranspose2d(32, 32, 2, 1, [1, 1]),
-            nn.ConvTranspose2d(32, 1, 2, 1, [1, 1]),
-        )
+        self.hookF = [Hook(layers[1], backward=False) for layers in list(self._modules.items())]
+        self.hookB = [Hook(layers[1], backward=True) for layers in list(self._modules.items())]
 
     def set_input(self, x, label):
         self.input = x
+        self.label = label
+
+    def _forward_reg(self, x):
+        CNN = self.CNN(x)
+        GAP = self.GAP(CNN)
+        self.output = self.classification(self.flatten(GAP))
+        return self.output
+
+    def _make_att_map(self, out1):
+        layer_index = np.argmax(np.array([name == 'CNN' for name in self._modules.keys()], dtype=np.int))
+        feature_maps = self.hookF[layer_index].output
+
+        # score = 1 / (1 + torch.abs(self.label - out1))
+        # score.backward(gradient=score, retain_graph=True)
+
+        score = 1 / (1 + torch.abs(self.label - out1))
+        score.mean().backward(retain_graph=True)
+
+        gradient = self.hookB[layer_index].output[0]
+        weighted = gradient.sum(dim=2, keepdim=True).sum(dim=3, keepdim=True) / (gradient.shape[2] * gradient.shape[3])
+        attention = F.relu((feature_maps.detach() * weighted.detach()).sum(dim=1).unsqueeze(dim=1))
+        attention = F.interpolate(attention, size=(self.input.shape[2], self.input.shape[3]), mode='bicubic')
+
+        attention = (attention - attention.min()) / (attention.max() - attention.min())
+
+        return attention
+
+    def _make_masked_img(self, attention):
+        attention[attention <= 0.5] = 1
+        attention[attention > 0.5] = 0
+
+        self.input_1 = self.input * attention + (1 - attention) * 255
+
+        return self.input_1
 
     def forward(self):
-        out = self.CNN(self.input)
-        latent = self.linear(out)
-        out = self.decoder_1(latent)
-        out = out.view(-1, 128, 4, 3)
-        self.output = self.decoder_2(out)
-
-        return self.output
+        self.out1 = self._forward_reg(self.input)
+        attMap = self._make_att_map(self.out1)
+        maskedImg = self._make_masked_img(attMap)
+        self.out2 = self._forward_reg(maskedImg)
+        self.loss_cl = F.mse_loss(self.label, self.out1)
+        loss_am = 1 / (1 + F.mse_loss(self.label, self.out2))
+        self.loss = self.loss_cl + loss_am
 
     def predict(self):
-        return self.output
+        return self.out1
 
-    def get_outputs(self):
-        return self.output
+    def predict_1(self):
+        return self.out2
+
+    def get_loss(self):
+        return self.loss
 
     def init_weights(self):
         for m in self.modules():
@@ -132,10 +165,10 @@ class sem_resnet(nn.Module):
 
 if __name__ == '__main__':
     print('Debug StackedAE')
-    model = sem_resnet()
+    model = depth_resnet()
     model.init_weights()
     x = torch.rand(1,1,72,48)
-    label = torch.rand(1,1)
+    label = torch.rand(1, 1)
     model.set_input(x, label)
     model.forward()
     output = model.get_outputs()

@@ -1,4 +1,3 @@
-import random
 import pandas as pd
 import numpy as np
 import torch
@@ -7,7 +6,7 @@ import os
 import glob
 import cv2
 
-class sem_dataload():
+class train_dataload():
     def __init__(self, sem_paths, depth_paths):
         self.train_sem = sorted(glob.glob(sem_paths + '*/*/*.png'))
 
@@ -43,9 +42,8 @@ class sem_dataload():
         sem_img = torch.Tensor(sem_img)
         dep_val = torch.Tensor(dep_val)
 
-        return {'sem' : sem_img , 'depth' : dep_val}
-
-class sem_simulation_dataload():
+        return {'input' : sem_img , 'label' : dep_val}
+class simulation_dataload():
     def __init__(self, simulation_sem_paths, simulation_depth_paths):
         self.train_sem = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
         self.train_depth = sorted(glob.glob(simulation_depth_paths + '*/*/*.png') + glob.glob(simulation_depth_paths + '*/*/*.png'))
@@ -71,9 +69,8 @@ class sem_simulation_dataload():
         sem_img = torch.Tensor(sem_img)
         depth_img = torch.Tensor(depth_img)
 
-        return {'sem' : sem_img , 'depth' : depth_img}
-
-class sem_simulation_sem_dataload():
+        return {'input' : sem_img , 'label' : depth_img}
+class simulation_sem_dataload():
     def __init__(self, simulation_sem_paths, simulation_depth_paths):
         self.train_sem = sorted(glob.glob(simulation_sem_paths + '*/*/*.png'))
         self.train_depth = sorted(glob.glob(simulation_depth_paths + '*/*/*.png')+glob.glob(simulation_depth_paths + '*/*/*.png'))
@@ -105,8 +102,8 @@ class sem_simulation_sem_dataload():
         sem_img = torch.Tensor(sem_img)
         depth_img = torch.Tensor(depth_img)
 
-        return {'sem': sem_img, 'depth': depth_img}
-class sem_simulation_depth_dataload():
+        return {'input': sem_img, 'label': depth_img}
+class simulation_depth_dataload():
     def __init__(self, simulation_depth_paths):
         self.train_depth_image = sorted(glob.glob(simulation_depth_paths + '*/*/*.png'))
         self.depth_len = len(self.train_depth_image)
@@ -120,14 +117,12 @@ class sem_simulation_depth_dataload():
         depth_img = np.expand_dims(depth_img, axis=-1).transpose(2, 0, 1)
         depth_img = depth_img / 255.
 
+        depth_img = torch.Tensor(depth_img)
+
         depth_label = float(depth_path.split('/')[8])
 
-        depth_img = torch.Tensor(depth_img)
-        depth_label = torch.Tensor(depth_label)
-
-        return {'depth' : depth_img, 'label' : depth_label }
-
-class sem_test_dataload():
+        return { 'input' : depth_img, 'label' : depth_label }
+class test_dataload():
     def __init__(self, test_sem_paths):
         self.test_sem_paths = sorted(glob.glob(test_sem_paths + 'SEM/*.png'))
 
@@ -146,7 +141,6 @@ class sem_test_dataload():
 
         return {'sem' : sem_img , 'depth' : img_name}
 
-
 if __name__=='__main__':
     simulation_sem_paths = '/storage/mskim/samsung/open/simulation_data/SEM/'
     simulation_depth_paths = '/storage/mskim/samsung/open/simulation_data/Depth/'
@@ -156,6 +150,6 @@ if __name__=='__main__':
     test_sem_paths = '/storage/mskim/samsung/open/test/'
 
     datasize = (52, 52)
-    dataset_object_train = sem_simulation_sem_dataload(simulation_sem_paths, simulation_depth_paths)
+    dataset_object_train = simulation_depth_dataload(simulation_depth_paths)
 
     x, y = dataset_object_train.__getitem__(0)
