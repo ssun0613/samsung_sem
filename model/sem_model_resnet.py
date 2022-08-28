@@ -47,25 +47,28 @@ class sem_resnet(nn.Module):
                                  shortcut(in_channels=128, out_channels=256, kernel_size=(3, 3), stride=2, padding=2),
                                  shortcut(in_channels=256, out_channels=256, kernel_size=(3, 3), stride=1, padding=1),
                                  shortcut(in_channels=256, out_channels=512, kernel_size=(3, 3), stride=2, padding=2),
-                                 shortcut(in_channels=512, out_channels=512, kernel_size=(3, 3), stride=1, padding=1),
-                                 shortcut(in_channels=512, out_channels=256, kernel_size=(3, 3), stride=2, padding=2),
-                                 shortcut(in_channels=256, out_channels=128, kernel_size=(3, 3), stride=2, padding=2),
+                                 shortcut(in_channels=512, out_channels=512, kernel_size=(3, 3), stride=1, padding=1)
                                  )
 
         self.linear = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(1536, 1024),
+            nn.Linear(17920, 8450),
             nn.ReLU(),
-            nn.Linear(1024, 512)
+            nn.Linear(8450, 4250),
+            nn.ReLU(),
+            nn.Linear(4250, 1024),
+
         )
         self.decoder_1 = nn.Sequential(
-            nn.Linear(512, 1024),
+            nn.Linear(1024, 4250),
             nn.ReLU(),
-            nn.Linear(1024, 1536),
+            nn.Linear(4250, 8450),
+            nn.ReLU(),
+            nn.Linear(8450, 17920),
             nn.ReLU(),
         )
         self.decoder_2 = nn.Sequential(
-            nn.ConvTranspose2d(128, 256, 3, 2),
+            nn.ConvTranspose2d(512, 256, 3, 2),
             nn.ConvTranspose2d(256, 512, 3, 2, [0, 1]),
             nn.ConvTranspose2d(512, 256, 3, 2),
             nn.ConvTranspose2d(256, 128, 2, 2, [1, 1]),
@@ -82,7 +85,7 @@ class sem_resnet(nn.Module):
         out = self.CNN(self.input)
         latent = self.linear(out)
         out = self.decoder_1(latent)
-        out = out.view(-1, 128, 4, 3)
+        out = out.view(-1, 512, 7, 5)
         self.output = self.decoder_2(out)
 
         return self.output
