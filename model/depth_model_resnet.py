@@ -119,13 +119,12 @@ class depth_resnet(nn.Module):
 
     def predict(self):
         return self.out1
-
     def predict_1(self):
         return self.out2
-
     def get_loss(self):
+        return self.loss_cl
+    def total_loss(self):
         return self.loss
-
     def init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):

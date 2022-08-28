@@ -34,13 +34,12 @@ class train_dataload():
             else:
                 None
 
-
         sem_img = cv2.imread(sem_path, cv2.IMREAD_GRAYSCALE)
         sem_img = np.expand_dims(sem_img, axis=-1).transpose(2, 0, 1)
         sem_img = sem_img / 255.
 
         sem_img = torch.Tensor(sem_img)
-        dep_val = torch.Tensor(dep_val)
+        dep_val = dep_val
 
         return {'input' : sem_img , 'label' : dep_val}
 class simulation_dataload():

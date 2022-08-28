@@ -57,8 +57,8 @@ class sem_resnet(nn.Module):
             nn.Linear(8450, 4250),
             nn.ReLU(),
             nn.Linear(4250, 1024),
-
         )
+
         self.decoder_1 = nn.Sequential(
             nn.Linear(1024, 4250),
             nn.ReLU(),
@@ -69,12 +69,10 @@ class sem_resnet(nn.Module):
         )
         self.decoder_2 = nn.Sequential(
             nn.ConvTranspose2d(512, 256, 3, 2),
-            nn.ConvTranspose2d(256, 512, 3, 2, [0, 1]),
-            nn.ConvTranspose2d(512, 256, 3, 2),
-            nn.ConvTranspose2d(256, 128, 2, 2, [1, 1]),
-            nn.ConvTranspose2d(128, 64, 2, 1, [1, 1]),
-            nn.ConvTranspose2d(64, 32, 2, 1, [1, 1]),
-            nn.ConvTranspose2d(32, 32, 2, 1, [1, 1]),
+            nn.ConvTranspose2d(256, 128, 3, 1),
+            nn.ConvTranspose2d(128, 64, 3, 1, [0, 1]),
+            nn.ConvTranspose2d(64, 32, 3, 2, [1, 1]),
+            nn.ConvTranspose2d(32, 32, 3, 2, [1, 1]),
             nn.ConvTranspose2d(32, 1, 2, 1, [1, 1]),
         )
 

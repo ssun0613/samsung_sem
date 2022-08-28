@@ -105,7 +105,7 @@ def network_load(want_net):
     if want_net == 'sem':
         from model.sem_model_resnet import sem_resnet
         from model.sem_model_densenet import sem_densenet
-        net_1 = sem_densenet().to(device)
+        net_1 = sem_resnet().to(device)
         return net_1
 
     elif want_net == 'depth':
@@ -123,92 +123,162 @@ def network_load(want_net):
 
 if __name__ == '__main__':
     # ------------------------------------------------------------------------------------------------------------------------------------------
-    want_load = 'sem_depth_simulation'
+    want_load = 'train'
     # [ 'train' | 'sem_depth_simulation' | 'sem_simulation' | 'sem_simulation' | 'depth_simulation' ]
-    want_net = 'sem'
+    want_net = 'sem_to_depth'
     # [ 'sem' | 'depth' | 'sem_to_depth' ]
 
-    batch_size = 120
+    batch_size = 1
     epoch = 200
 
     bf_lr = 1e-4
     lr = 1e-4
     lr_min = 1e-8
 
-    cpu_id = '1'
-    continue_train = False
-    device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
+    cpu_id = '0'
+    continue_train = True
+    # device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
 
-    import wandb
-    wandb.init(project=want_load)
+    # import wandb
+    # wandb.init(project=want_load)
     # ------------------------------------------------------------------------------------------------------------------------------------------
-    print('want_load : {}\nbatch_size : {}\nepoch : {}\nbf_lr : {}\nlr : {}\ncpu_id : {}\n'.format(want_load, batch_size, epoch, bf_lr, lr, cpu_id))
+    print('want_load : {}\nwant_net : {}\nbatch_size : {}\nepoch : {}\nbf_lr : {}\nlr : {}\ncpu_id : {}\n'.format(want_load, want_net, batch_size, epoch, bf_lr, lr, cpu_id))
     # ------------------------------------------------------------------------------------------------------------------------------------------
+    if (want_net == 'sem') or (want_net == 'depth'):
+        net = network_load(want_net)
 
-    net = network_load(want_net)
+        if not continue_train:
+            net.init_weights()
+        else:
+            net.load_networks(net=net, net_type='lr_{}_{}'.format(want_net, bf_lr), device=device,
+                              weight_path='/home/ssunkim/PycharmProjects/samsung_sem/checkpoints')
 
-    if not continue_train:
-        net.init_weights()
-    else:
-        net.load_networks(net=net, net_type='lr_{}_{}'.format(want_net, bf_lr), device=device,
-                          weight_path='/home/ssunkim/PycharmProjects/samsung_sem/checkpoints')
+        train_loader, test_loader = data_load(want_load)
 
-    train_loader, test_loader = data_load(want_load)
+        # test(net, test_loader, device)
 
-    # test(net, test_loader, device)
+        # ****** Optimizer, Scheduler setup ******
+        optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=lr_min)
 
-    # ****** Optimizer, Scheduler setup ******
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=lr_min)
+        # optimizer_1 = torch.optim.Adam(net.parameters(), lr=lr)
+        # scheduler_1 = lr_scheduler.CosineAnnealingLR(optimizer_1, T_max=20, eta_min=lr_min)
 
-    # optimizer_1 = torch.optim.Adam(net.parameters(), lr=lr)
-    # scheduler_1 = lr_scheduler.CosineAnnealingLR(optimizer_1, T_max=20, eta_min=lr_min)
+        fn_loss = nn.MSELoss()
 
-    fn_loss = nn.MSELoss()
+        # ---- Training ----
+        global_step = 0
+        temp_loss = []
+        temp_acc = []
+        temp_score = []
+        train_loss = []
+        for curr_epoch in range(epoch):
+            epoch_start_time = time.time()
+            print('------- epoch {} starts -------'.format(curr_epoch + 1))
 
-    # ---- Training ----
-    global_step = 0
-    temp_loss = []
-    temp_acc = []
-    temp_score = []
-    train_loss = []
-    for curr_epoch in range(epoch):
-        epoch_start_time = time.time()
-        print('------- epoch {} starts -------'.format(curr_epoch + 1))
+            for batch_id, data in enumerate(train_loader, 1):
+                global_step += 1
+                image = data['input'].type('torch.FloatTensor').to(device)
+                label = data['label'].type('torch.FloatTensor').to(device)
 
-        for batch_id, data in enumerate(train_loader, 1):
-            global_step += 1
-            image = data['input'].type('torch.FloatTensor').to(device)
-            label = data['label'].type('torch.FloatTensor').to(device)
+                net.set_input(image, label)
+                net.forward()
 
-            net.set_input(image, label)
-            net.forward()
+                out = net.predict()
+                loss = fn_loss(label, out)
 
-            out = net.predict()
-            loss = fn_loss(label, out)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                train_loss.append(loss.cpu().detach().numpy().item())
+                #
+                if global_step % 10 == 0:
+                    loss_dict = dict()
+                    loss_dict['loss'] = np.mean(train_loss)
+                    loss_dict['lr'] = optimizer.param_groups[0]['lr']
+                    log(prefix='train', metrics_dict=loss_dict)
 
-            train_loss.append(loss.cpu().detach().numpy().item())
+                    train_loss = []
+
+
+            print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
+            print('------- epoch {} ends -------'.format(curr_epoch + 1))
             #
-            if global_step % 10 == 0:
-                loss_dict = dict()
-                loss_dict['loss'] = np.mean(train_loss)
-                log(prefix='train', metrics_dict=loss_dict)
+            print('Update Learning Rate...')
+            scheduler.step()
+            print('[Network] learning rate = %.7f' % optimizer.param_groups[0]['lr'])
 
-                train_loss = []
+            print('Save network...')
+            torch.save({'net': net.state_dict()},'/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_net, lr))
+
+    elif want_net == 'sem_to_depth':
+        sem_net, depth_net = network_load(want_net)
+
+        if not continue_train:
+            depth_net.init_weights()
+        else:
+            depth_net.load_networks(net=depth_net, net_type='lr_depth_0.0001', device=device,
+                                    weight_path='/home/ssunkim/PycharmProjects/samsung_sem/checkpoints')
+
+        train_loader, test_loader = data_load(want_load)
+
+        # test(net, test_loader, device)
+
+        # ****** Optimizer, Scheduler setup ******
+        optimizer = torch.optim.Adam(sem_net.parameters(), lr=lr)
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=lr_min)
+
+        fn_loss = nn.MSELoss()
+
+        # ---- Training ----
+        global_step = 0
+        temp_loss = []
+        temp_acc = []
+        temp_score = []
+        train_loss = []
+        for curr_epoch in range(epoch):
+            epoch_start_time = time.time()
+            print('------- epoch {} starts -------'.format(curr_epoch + 1))
+
+            for batch_id, data in enumerate(train_loader, 1):
+                global_step += 1
+                image = data['input'].type('torch.FloatTensor').to(device)
+                label = data['label'].type('torch.FloatTensor').to(device)
+
+                sem_net.set_input(image, label)
+                sem_net.forward()
+                depth_image = sem_net.predict()
+                sem_net_loss = fn_loss(label, depth_image)
 
 
-        print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
-        print('------- epoch {} ends -------'.format(curr_epoch + 1))
-        #
-        print('Update Learning Rate...')
-        scheduler.step()
-        print('[Network] learning rate = %.7f' % optimizer.param_groups[0]['lr'])
+                with torch.no_grad():
+                    depth_net.set_input(depth_image, label)
+                    depth_net.forward()
+                    depth_net_loss = depth_net.get_loss()
 
-        print('Save network...')
-        torch.save({'net': net.state_dict()},'/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_densenet_{}.pth'.format(want_net, lr))
+                loss = sem_net_loss + depth_net_loss
 
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
+                train_loss.append(loss.cpu().detach().numpy().item())
+                #
+                # if global_step % 10 == 0:
+                #     loss_dict = dict()
+                #     loss_dict['loss'] = np.mean(train_loss)
+                #     loss_dict['lr'] = optimizer.param_groups[0]['lr']
+                #     log(prefix='train', metrics_dict=loss_dict)
+                    # train_loss = []
+
+            print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
+            print('------- epoch {} ends -------'.format(curr_epoch + 1))
+            #
+            print('Update Learning Rate...')
+            scheduler.step()
+            print('[Network] learning rate = %.7f' % optimizer.param_groups[0]['lr'])
+
+            print('Save network...')
+            torch.save({'net': sem_net.state_dict()},'/home/ssunkim/PycharmProjects/samsung_sem/checkpoints' + '/latest_net_lr_{}_{}.pth'.format(want_net, lr))
