@@ -123,6 +123,20 @@ def plot_decision_regions(x,y,classifier,test_idx=None, resolution=0.2):
         plt.scatter(x_test[:, 0], y_test[:, 1],
                     facecolors='none', edgecolors='black', alpha=1.0,
                     linewidths=1, marker='o', s=100, label='test set')
+
+def log_image(input, label, predition):
+    from model.common import tensor2numpy
+    new_data = []
+    column_names = ["input", "label", "predition"]
+    for i in range(input.shape[0]):
+        data = [
+            wandb.Image(input[i]),
+            wandb.Image(label[i]),
+            wandb.Image(predition[i])
+        ]
+        new_data.append(data)
+    table = wandb.Table(data=new_data, columns=column_names)
+    wandb.log({'image': table})
 def log_attention_map(input, attentionmap):
     from model.common import tensor2numpy
     new_data = []

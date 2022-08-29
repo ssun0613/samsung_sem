@@ -198,7 +198,7 @@ def sem(batch_size, epoch, lr, lr_min, want_net, want_load, continue_train, devi
 
     train_loader, test_loader = data_load(want_load)
 
-    # test(net, test_loader, device)
+    test(net, test_loader, device)
 
     # ****** Optimizer, Scheduler setup ******
     optimizer = torch.optim.Adam(net.parameters(), lr=lr)
@@ -238,6 +238,9 @@ def sem(batch_size, epoch, lr, lr_min, want_net, want_load, continue_train, devi
                 log(prefix='train', metrics_dict=loss_dict)
 
                 train_loss = []
+
+            if global_step % 100 == 0:
+                log_image(image, label, out)
 
         print('Elapsed time for one epoch: %.2f [s]' % (time.time() - epoch_start_time))
         print('------- epoch {} ends -------'.format(curr_epoch + 1))
@@ -315,16 +318,16 @@ def depth(batch_size, epoch, lr, lr_min, want_net, want_load, continue_train, de
 
 if __name__ == '__main__':
     # ------------------------------------------------------------------------------------------------------------------------------------------
-    want_net = 'depth'
+    want_net = 'sem'
     # [ 'sem' | 'depth' | 'sem_to_depth' ]
-    batch_size = 20
+    batch_size = 40
     epoch = 200
 
     lr = 1e-4
     lr_min = 1e-8
 
     cpu_id = '0'
-    continue_train = False
+    continue_train = True
     device = torch.device("cuda:{}".format(cpu_id) if torch.cuda.is_available() else "cpu")
     # device = torch.device("cpu")
 
